@@ -1,0 +1,341 @@
+---
+title: "CS5811_Coursework"
+author: "Payal Parida"
+date: "2023-04-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("validate")
+#install.packages("ggplot2")
+#install.packages("tidyverse")
+#install.packages("devtools")
+#install.packages("ggfortify")
+#install.packages("reshape")
+#install.packages("reshape2")
+#install.packages("corrplot")
+#install.packages(factoextra)
+library(validate)
+library(tidyverse)
+library("tidyr")
+library("dplyr")
+library(ggplot2)
+library(Hmisc)
+library(ggfortify)
+library(reshape2)
+library(corrplot)
+library(factoextra)
+```
+```{r}
+# Returns the maximum number of printed output lines when an object is printed in the console
+
+getOption("max.print")
+options(max.print = 10000)
+```
+
+# EDA and Summary of Results 
+
+```{r}
+#Read Online News Popularity data from the CSV file
+
+newsfame <- read.csv("Online_news_popularity_cleaned.csv")
+```
+
+```{r}
+# Exploration of dataset
+# Shows the default first 6 observations/rows of the dataset.
+head(newsfame)
+```
+
+## Step 1: Variables of the Data Set
+
+```{r}
+# Read all the variables of the dataset
+
+names(newsfame)
+```
+
+```{r}
+# Check Statistical Summary of the dataset
+
+summary(newsfame)
+```
+```{r}
+# Check the overall structure of the dataset
+
+str(newsfame)
+```
+```{r}
+# Check for Categorical variables:
+
+table(newsfame$data_channel_is_lifestyle)
+table(newsfame$data_channel_is_bus)
+table(newsfame$data_channel_is_entertainment)
+table(newsfame$data_channel_is_socmed)
+table(newsfame$data_channel_is_tech)
+table(newsfame$data_channel_is_world)
+table(newsfame$weekday_is_monday)
+table(newsfame$weekday_is_tuesday)
+table(newsfame$weekday_is_wednesday)
+table(newsfame$weekday_is_thursday)
+table(newsfame$weekday_is_friday)
+table(newsfame$weekday_is_saturday)
+table(newsfame$weekday_is_sunday)
+table(newsfame$is_weekend)
+
+# PCA can be applied on categorical variables when the categorical variables are in numerical form, hence we're keeping these variables as these are.
+```
+## Correlation 
+
+```{r}
+# Check the Correlation of the variables.
+cor_newsfame <- round(cor(newsfame), 2)
+```
+```{r}
+# Reshaping the Correlation matrix.
+melted_cor_newsfame <- melt(cor_newsfame,na.rm = TRUE)
+melted_cor_newsfame
+```
+
+```{r}
+# Heatmap for Correlation of the variables.
+
+my_plot <- ggplot(data = melted_cor_newsfame, aes(x=Var1, y=Var2, fill=value)) + geom_tile()+ scale_fill_gradient2(low = "#9E4784", high = "#128789", mid = "white") + theme(axis.text.x = element_text(angle = 90))
+my_plot
+```
+
+```{r}
+high_cor_newsfame <- which(abs(cor_newsfame) > 0.8 & upper.tri(cor_newsfame), arr.ind = TRUE)
+high_cor_newsfame
+
+colnames(newsfame)[high_cor_newsfame[, 2]] 
+```
+```{r}
+# Select all the variables which are heavily correlated to each other.
+
+selected_cor_variables <- c("n_unique_tokens","n_non_stop_words", "n_non_stop_unique_tokens","kw_max_min","kw_avg_min","kw_min_min","kw_max_max","kw_max_avg","kw_avg_avg","self_reference_min_shares","self_reference_avg_sharess","self_reference_max_shares","data_channel_is_world","LDA_02")
+```
+```{r}
+# Cross-Check correlation for the highly correlated variables.
+high_cor_matrix <- round(cor(newsfame[,selected_cor_variables]),2)
+```
+```{r}
+melted_high_cor_matrix <- melt(high_cor_matrix)
+melted_high_cor_matrix
+```
+```{r}
+my_plot_high_cor <- ggplot(data = melted_high_cor_matrix, aes(x=Var1, y=Var2, fill=value)) + geom_tile()+ scale_fill_gradient2(low = "#9E4784", high = "#1A5F7A", mid = "white") + theme(axis.text.x = element_text(angle = 90))
+my_plot_high_cor
+```
+```{r}
+color_set <- c("#0b2a36","#128789","#5c8898","#FFFFFF"
+,"#cea3c1","#bb7ea8","#9E4784")
+```
+
+```{r}
+# Plot to visualize the correlation among the heavily correlated variables.
+
+corrplot(high_cor_matrix, method = 'circle',type="lower",col = COL2('PiYG'), order = 'alphabet', cl.ratio = 0.3,cl.cex = 0.6,tl.cex = 0.5,tl.col = "black",addCoef.col =1,number.cex = 0.5,rect.lwd = 5)
+
+corrplot(high_cor_matrix, method = 'circle',type="lower",col = color_set, order = 'alphabet', cl.ratio = 0.3,cl.cex = 0.6,tl.cex = 0.5,tl.col = "black",addCoef.col =1,number.cex = 0.5,rect.lwd = 5)
+```
+
+```{r}
+# Removing 7 variables which are highly correlated to other variables.
+
+newsfame_nonco = subset(newsfame, select = -c(data_channel_is_world,n_non_stop_words,n_non_stop_unique_tokens,kw_avg_min,kw_min_min,kw_avg_avg,self_reference_avg_sharess))
+```
+```{r}
+# Check the name of the rest variables of the dataset.
+colnames(newsfame_nonco)
+```
+```{r}
+# Cross-check the correlation among the rest of the variables.
+
+high_cor_newsfame_1 <- which(abs(cor(newsfame_nonco)) > 0.8 & upper.tri(cor(newsfame_nonco)), arr.ind = TRUE)
+high_cor_newsfame_1
+
+colnames(newsfame_nonco)[high_cor_newsfame_1[, 2]] 
+```
+
+
+# Dimention Reduction using Principal Complonent of Analysis
+
+```{r}
+# Apply Principal Component Analysis (PCA).
+
+pc_newsfame <- prcomp(newsfame_nonco, center = T, scale. = T)
+attributes(pc_newsfame)
+```
+```{r}
+# Statistical and Structural Summary of PCA
+
+summary(pc_newsfame)
+str(pc_newsfame)
+```
+
+```{r}
+# SCREE Plot for Visualization of the principal components.
+
+fviz_eig(pc_newsfame,addlabels = T,ncp=60, barfill="#128789",barcolor="#9E4784")
+```
+```{r}
+# Generate Proportion of Variance Explained (PEV).
+pc_newsfame_pev <- pc_newsfame$sdev^2 /sum(pc_newsfame$sdev^2)
+```
+```{r}
+# 80% of Cumulative proportion of variance explained with PCA
+
+plot(cumsum(pc_newsfame_pev),
+     ylim=c(0,1),
+     xlab="PC",
+     ylab="Cumulative PEV",
+     pch=18,
+     col="#9E4784")
+abline(h=0.8, col="#128789", lty='dashed')
+
+
+# 70% of Cumulative proportion of variance explained with PCA
+
+plot(cumsum(pc_newsfame_pev),
+     ylim=c(0,1),
+     xlab="PC",
+     ylab="Cumulative PEV",
+     pch=18,
+     col="#9E4784")
+abline(h=0.7, col="#128789", lty='dashed')
+
+# 65% of Cumulative proportion of variance explained with PCA
+
+plot(cumsum(pc_newsfame_pev),
+     ylim=c(0,1),
+     xlab="PC",
+     ylab="Cumulative PEV",
+     pch=18,
+     col="#9E4784")
+abline(h=0.65, col="#128789", lty='dashed')
+```
+- Here we consider 65% of Cumulative proportion of variance where 17 PC values explain the 65% of the variance of the data.
+
+```{r}
+# Check PC Loading for 17 PCs as these components explain approximate 65% of variation in the data set.
+
+pc_newsfame_loadings <- round(pc_newsfame$rotation[ ,1:17],3)
+pc_newsfame_loadings
+```
+```{r}
+# Maximum contribution of variables to first 17 PC counts.
+
+max_loading_pc_newsfame <- apply(pc_newsfame_loadings, 2, function(x) names(x)[which.max(abs(x))])
+max_loading_pc_newsfame
+```
+
+- NOTE: The variable `LDA_00` has the maximum rotation value in PC4 & PC6, hence we consider `LDA_00` once. Now we have 16 variables to be observed. 
+
+```{r}
+# Bar plot to visualize the contribution of variables to first 16 PC counts.
+
+fviz_contrib(pc_newsfame, choice = "var", axes = 1, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 2, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 3, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 4, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 5, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 7, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 8, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 9, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 10, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 11, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 12, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 13, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 14, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 15, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 16, top = 5, color ="#9E4784", fill ="#128789")
+fviz_contrib(pc_newsfame, choice = "var", axes = 17, top = 5, color ="#9E4784", fill ="#128789")
+```
+
+```{r}
+# Another plot as variable correlation plots to visualize the contribution of variables to first 16 PC counts.
+
+fviz_pca_var(pc_newsfame, col.var = "cos2",
+             gradient.cols =c("#128789","#9E4784","#990019"),
+             repel = TRUE)
+
+
+fviz_pca_var(pc_newsfame, col.var = "cos2",
+             gradient.cols =c("#C5DE47", "red","#330033"),
+             repel = TRUE)
+```
+```{r}
+# New dataset with the target variable `shares` & 16 variables based on contribution on PC 
+
+newsfame_final = subset(newsfame, select = c(global_subjectivity, rate_negative_words, kw_avg_max,n_tokens_content,LDA_00,is_weekend,data_channel_is_entertainment,kw_max_avg,LDA_02,LDA_01,self_reference_min_shares,max_negative_polarity,kw_max_min,weekday_is_wednesday,weekday_is_tuesday,weekday_is_monday,shares))
+```
+```{r}
+names(newsfame_final)
+```
+```{r}
+# Scale the data to compare them which are not measured in the same way.
+newsfame_final_scale <- scale(newsfame_final)
+```
+```{r}
+# Generate Histogram for normality check.
+
+opar <- par(no.readonly = TRUE)
+par(mfrow = c(3,2))
+hist(newsfame_final_scale[, 1], main = names(newsfame_final)[1], xlab = names(newsfame_final)[1], col="#128789")
+hist(newsfame_final_scale[, 2], main = names(newsfame_final)[2], xlab = names(newsfame_final)[2], col="#128789")
+hist(newsfame_final_scale[, 3], main = names(newsfame_final)[3], xlab = names(newsfame_final)[3], col="#128789")
+hist(newsfame_final_scale[, 4], main = names(newsfame_final)[4], xlab = names(newsfame_final)[4], col="#128789")
+hist(newsfame_final_scale[, 5], main = names(newsfame_final)[5], xlab = names(newsfame_final)[5], col="#128789")
+hist(newsfame_final_scale[, 8], main = names(newsfame_final)[8], xlab = names(newsfame_final)[8], col="#128789")
+par(opar)
+```
+
+```{r}
+# Create a new variable 'Target' and set its values to the corresponding values in the "shares" 
+newsfame_final["Target"] = newsfame["shares"]
+```
+```{r}
+summary(newsfame_final["Target"])
+```
+
+```{r}
+# Convert the continuous 'Target' variable to categorical as 'Target_Category' based on Median i.e 1400
+
+newsfame_final$Target_Category<-ifelse(newsfame_final$Target < 1400,"Low","High")
+```
+```{r}
+newsfame_final = subset(newsfame_final, select = -c(Target))
+```
+```{r}
+table(newsfame_final$Target_Category)
+```
+
+```{r}
+write.csv(newsfame_final,"/Users/payalparida/Desktop/Assessments-Term 2/CS5811//OnlineNewsPopularity_Final.csv", row.names = FALSE)
+```
+
+### REFERENCE:
+1. The optimal value of correlation coefficient for strong correlation < 0.7 : https://www.westga.edu/academics/research/vrc/assets/docs/scatterplots_and_correlation_notes.pdf
+
+2. SCREE Plot: http://www.sthda.com/english/wiki/eigenvalues-quick-data-visualization-with-factoextra-r-software-and-data-mining
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
