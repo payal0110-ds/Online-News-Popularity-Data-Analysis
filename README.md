@@ -1,6 +1,6 @@
 # Online-News-Popularity-Data-Analysis
 Complete Data Analysis process steps to analyse the data for Online Popularity of News
-<b>
+<br>
 Author: Payal Parida
-<b>
+<br>
 Creation: April,2023
